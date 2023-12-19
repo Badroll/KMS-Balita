@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, Blueprint
+from flask import Flask, request, jsonify, send_file, Blueprint, url_for
 from flask_cors import CORS, cross_origin
 from datetime import datetime, timedelta
 import os
@@ -181,6 +181,23 @@ def tes_get():
     return helper.composeReply("SUCCESS", "Data pengecekkan", data)
 
 
+route = "/file"
+@app.route(route, methods = ["GET"])
+def file():
+    filename = request.args.get('filename')
+    if not filename:
+        return "N", 400
+    
+    image_path = f'images/{filename}'
+    if image_path.endswith('.jpg') or image_path.endswith('.jpeg'):
+        mimetype = 'image/jpeg'
+    elif image_path.endswith('.png'):
+        mimetype = 'image/png'
+    else:
+        return helper.composeReply("ERROR", 'Unsupported file type')
+    return send_file(image_path, mimetype=mimetype)
+
+
 route = "/export_simaset"
 @app.route(route, methods=['GET'])
 def export_simaset():
@@ -347,9 +364,9 @@ def export_kmsbalita():
         sheet[f"E{row_current}"] = f"{record['TES_TINGGI']} cm ({record['TES_HASIL_TINGGI']})"
         sheet[f"F{row_current}"] = f"{record['TES_BERAT']} kg ({record['TES_HASIL_BERAT']})"
         sheet[f"G{row_current}"] = f"{record['TES_KEPALA']} cm ({record['TES_HASIL_KEPALA']})"
-        sheet[f"H{row_current}"] = helper.tgl_indo(record["TES_TANGGAL"], 'SHORT')
+        sheet[f"H{row_current}"] = helper.tgl_indo(record["TES_TANGGAL"], 'SHORT').replace("00:00:00", "")
     row_data_end = row_current
-    for cell in helper.get_cells_in_range(sheet, f"B-{row_data_start}:I-{row_data_end}"):
+    for cell in helper.get_cells_in_range(sheet, f"B-{row_data_start}:H-{row_data_end}"):
         cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     row_current += 2
@@ -369,7 +386,9 @@ def export_kmsbalita():
         env = Environment(loader=FileSystemLoader('view'))
         template = env.get_template('template.html')
 
-        row = f"""
+        row = ""
+        for i, record in enumerate(data):
+            row += f"""
                 <tr>
                     <td>{record["TES_NAMA"]}</td>
                     <td>{record["TES_JK_VALUE"]}</td>
@@ -377,18 +396,22 @@ def export_kmsbalita():
                     <td>{record["TES_TINGGI"]} cm<br>({record['TES_HASIL_TINGGI']})</td>
                     <td>{record["TES_BERAT"]} kg<br>({record['TES_HASIL_BERAT']})</td>
                     <td>{record["TES_KEPALA"]} cm<br>({record['TES_HASIL_KEPALA']})</td>
-                    <td>{helper.tgl_indo(record["TES_TANGGAL"], 'SHORT')}</td>
+                    <td>{helper.tgl_indo(record["TES_TANGGAL"], 'SHORT').replace("00:00:00", "")}</td>
                 </tr>
             """
         rendered_html = template.render(row=row,
                                         title=display_judul,
                                         subtitle=f"Posyandu : {posyandu_nama}",
-                                        downloaded=f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}")
+                                        downloaded=f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}",
+                                        img1=url_for('file', _external=True) + "?filename=img.png"
+                                        )
+
+        print(rendered_html)
 
         with open('temp.html', 'w', encoding='utf-8') as html_file:
             html_file.write(rendered_html)
 
-        filename = f'storage/data pemeriksaan posyandu {posyandu_nama}.pdf'
+        filename = f'storage/DATA PEMERIKSAAN POSYANDU {posyandu_nama}.pdf'
         pdfkit.from_file('temp.html', filename)
         response = send_file(filename, as_attachment=True)
         
@@ -396,7 +419,7 @@ def export_kmsbalita():
         #os.remove(filename)
         return response
     else:
-        return send_file(excel_file, as_attachment=True, download_name=f'data pemeriksaan posyandu {posyandu_nama}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        return send_file(excel_file, as_attachment=True, download_name=f'DATA PEMERIKSAAN POSYANDU {posyandu_nama}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
    
 
 
