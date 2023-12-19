@@ -147,7 +147,6 @@ def tes_save():
     add = helper.db_insert("tes", {
         "TES_POSY" : posyandu,
         "TES_TANGGAL" : tanggal,
-        # "TES_TANGGAL" : datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "TES_NAMA" : nama,
         "TES_JK" : jk,
         "TES_UMUR" : umur,
@@ -273,7 +272,7 @@ def export_simaset():
         cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     row_current += 2
-    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    current_datetime = helper.get_local_time().strftime('%Y-%m-%d %H:%M:%S')
     sheet[f"B{row_current}"] = f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}"
     sheet[f"B{row_current}"].font = Font(italic=True)
     sheet.merge_cells(f"B{row_current}:C{row_current}")
@@ -370,7 +369,7 @@ def export_kmsbalita():
         cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     row_current += 2
-    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    current_datetime = helper.get_local_time().strftime('%Y-%m-%d %H:%M:%S')
     sheet[f"B{row_current}"] = f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}"
     sheet[f"B{row_current}"].font = Font(italic=True)
     sheet.merge_cells(f"B{row_current}:C{row_current}")
@@ -405,8 +404,6 @@ def export_kmsbalita():
                                         downloaded=f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}",
                                         img1=url_for('file', _external=True) + "?filename=img.png"
                                         )
-
-        print(rendered_html)
 
         with open('temp.html', 'w', encoding='utf-8') as html_file:
             html_file.write(rendered_html)

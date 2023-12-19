@@ -27,7 +27,7 @@ def allowed_file(filename):
 
 def saveFile(file):
     try:
-        filename = str(datetime.now()).replace(":", "-") + secure_filename(file.filename)
+        filename = str(get_local_time()).replace(":", "-") + secure_filename(file.filename)
         basedir = path.abspath(path.dirname(__file__))
         file.save(path.join(basedir, "uploads", filename))
         return filename
@@ -230,7 +230,7 @@ def send_wa_multipleSendText(phone, message, account=1):
     if response.status_code == 200:
         success = True
 
-    log_curl(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), url, "Wablas multipleSendText", "POST", json.dumps(headers), json.dumps(data), response.text)
+    log_curl(get_local_time().strftime('%Y-%m-%d %H:%M:%S'), url, "Wablas multipleSendText", "POST", json.dumps(headers), json.dumps(data), response.text)
     
     return [success, str(response.text)]
 
@@ -256,7 +256,7 @@ def send_wa_multipleSendImage(phone, caption, url, account=1):
     if response.status_code == 200:
         success = True
 
-    log_curl(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), url, "Wablas multipleSendImage", "POST", json.dumps(headers), json.dumps(data), response.text)
+    log_curl(get_local_time().strftime('%Y-%m-%d %H:%M:%S'), url, "Wablas multipleSendImage", "POST", json.dumps(headers), json.dumps(data), response.text)
     
     return [success, str(response.text)]
 
@@ -380,3 +380,11 @@ def tgl_indo(tgl, mode):
         return f"{t[2]} {bln[b][mode]} {t[0]} {jam}"
     else:
         return "-"
+
+
+def get_local_time():
+    import pytz
+    utc_time = datetime.utcnow()
+    jakarta_timezone = pytz.timezone('Asia/Jakarta')
+    local_time = utc_time.replace(tzinfo=pytz.utc).astimezone(jakarta_timezone)
+    return local_time
