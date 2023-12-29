@@ -93,6 +93,9 @@ def auth_login():
     if len(cek_user) == 0:
         return helper.composeReply("ERROR", f"Maaf, pengguna dengan email {email} tidak terdaftar")
     cek_user = cek_user[0]
+
+    if not cek_user["USER_PASSWORD_HASH"] == password:
+        return helper.composeReply("ERROR", "Password salah")
     
     token = helper.generate_token()
     helper.db_update("_user",
