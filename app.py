@@ -203,90 +203,123 @@ def file():
 route = "/export_simaset"
 @app.route(route, methods=['GET'])
 def export_simaset():
-    opd = request.args.get("opd")
-    if opd == None:
-        return helper.composeReply("ERROR", "Parameter incomplete (opd)")
     export = request.args.get("export")
     if export == None:
         return helper.composeReply("ERROR", "Parameter incomplete (export)")
-    qry = """
-        SELECT A.*, B.*, C.R_VALUE AS BARANG_KONDISI_VALUE, D.R_VALUE AS BARANG_KEBERADAAN_VALUE FROM barang AS A
-        JOIN dinas as B ON A.BARANG_OPD = B.DINAS_ID
-        JOIN _reference as C ON A.BARANG_KONDISI = C.R_ID
-        JOIN _reference as D ON A.BARANG_KEBERADAAN = D.R_ID
-    """
-    if not opd == "_ALL_":
-        qry += f" WHERE A.BARANG_OPD = {opd}"
-    data = helper.db_raw(qry, database="simaset")[1]
-
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-    from io import BytesIO
-
-    workbook = openpyxl.Workbook()
-    sheet = workbook.active
-    sheet.title = 'Sheet1'
-
-    row_start = 1
-    row_current = row_start
-
-    row_current += 1
-    display_judul = "DATA BARANG"
-    if not opd == "_ALL_":
-        display_judul += "" # tambah ket. OPD
-    sheet[f"B{row_current}"] = display_judul
-    sheet[f"B{row_current}"].font = Font(bold=True, size=14)
-    sheet[f"B{row_current}"].alignment = Alignment(horizontal='center', vertical='center')
-    sheet.merge_cells(f"B{row_current}:H{row_current}")
-
-    row_current += 2
-    sheet[f"B{row_current}"] = "Kode Sensus"
-    sheet[f"C{row_current}"] = "Nama Barang"
-    sheet[f"D{row_current}"] = "OPD"
-    sheet[f"E{row_current}"] = "Kondisi"
-    sheet[f"F{row_current}"] = "Keberadaan"
-    sheet[f"G{row_current}"] = "Waktu Pendataan"
-    sheet[f"H{row_current}"] = "Keterangan"
-    for cell in helper.get_cells_in_range(sheet, f"B-{row_current}:H-{row_current}"):
-        cell.font = Font(bold=True, size=14)
-        cell.fill = PatternFill(start_color="c4c1c0", end_color="c4c1c0", fill_type="solid")
-        cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    sheet.row_dimensions[row_current].height = 20
-    sheet.column_dimensions[("B")].width = 20
-    sheet.column_dimensions[("C")].width = 20
-    sheet.column_dimensions[("D")].width = 20
-    sheet.column_dimensions[("E")].width = 20
-    sheet.column_dimensions[("F")].width = 20
-    sheet.column_dimensions[("G")].width = 20
-    sheet.column_dimensions[("H")].width = 20
-    
-    row_data_start = row_current + 1
-    for i, record in enumerate(data):
-        row_current += 1
-        sheet[f"B{row_current}"] = record["BARANG_KODE_SENSUS"]
-        sheet[f"C{row_current}"] = record["BARANG_NAMA"]
-        sheet[f"D{row_current}"] = record["DINAS_NAMA"]
-        sheet[f"E{row_current}"] = record["BARANG_KONDISI_VALUE"]
-        sheet[f"F{row_current}"] = record["BARANG_KEBERADAAN_VALUE"]
-        sheet[f"G{row_current}"] = helper.tgl_indo(record["BARANG_WAKTU_PENDATAAN"], 'SHORT')
-        sheet[f"H{row_current}"] = record["BARANG_KETERANGAN"]
-    row_data_end = row_current
-    for cell in helper.get_cells_in_range(sheet, f"B-{row_data_start}:H-{row_data_end}"):
-        cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-
-    row_current += 2
-    current_datetime = helper.get_local_time().strftime('%Y-%m-%d %H:%M:%S')
-    sheet[f"B{row_current}"] = f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}"
-    sheet[f"B{row_current}"].font = Font(italic=True)
-    sheet.merge_cells(f"B{row_current}:C{row_current}")
-
-    excel_file = BytesIO()
-    workbook.save(excel_file)
-    excel_file.seek(0)
-
+        
     if export == "pdf":
-        print(1)
+        from jinja2 import Environment, FileSystemLoader
+        import pdfkit
+
+        kode = request.args.get("kode")
+        if kode == None:
+            return helper.composeReply("ERROR", "Parameter incomplete (kode)")
+        qry = f"""
+            SELECT A.* FROM barang as A WHERE A.BARANG_KODE_SENSUS = '{kode}'
+        """
+        data = helper.db_raw(qry, database="simaset")[1]
+        if len(data) == 0:
+            return helper.composeReply("ERROR", "Barang tidak ditemukan")
+        data = data[0]
+
+        env = Environment(loader=FileSystemLoader('view'))
+        template = env.get_template('qr.html')
+        rendered_html = template.render(svg=data["BARANG_QR_SVG"],
+                                        title= f"{kode} - {data['BARANG_NAMA']}"
+                                        )
+
+        with open('temp.html', 'w', encoding='utf-8') as html_file:
+            html_file.write(rendered_html)
+        filename = f"storage/{kode} - {data['BARANG_NAMA']}.pdf"
+        options = {
+            'page-size': 'B5',  # Ganti dengan ukuran kertas yang sesuai
+            'orientation': 'Portrait',  # Mengatur orientasi ke horizontal (Landscape)
+        }
+        pdfkit.from_file('temp.html', filename, options=options)
+        response = send_file(filename, as_attachment=True)
+        
+        os.remove("temp.html")
+        return response
+
     else:
+        opd = request.args.get("opd")
+        if opd == None:
+            return helper.composeReply("ERROR", "Parameter incomplete (opd)")
+        qry = """
+            SELECT A.*, B.*, C.R_VALUE AS BARANG_KONDISI_VALUE, D.R_VALUE AS BARANG_KEBERADAAN_VALUE FROM barang AS A
+            JOIN dinas as B ON A.BARANG_OPD = B.DINAS_ID
+            JOIN _reference as C ON A.BARANG_KONDISI = C.R_ID
+            JOIN _reference as D ON A.BARANG_KEBERADAAN = D.R_ID
+        """
+        if not opd == "_ALL_":
+            qry += f" WHERE A.BARANG_OPD = {opd}"
+        data = helper.db_raw(qry, database="simaset")[1]
+
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        from io import BytesIO
+
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = 'Sheet1'
+
+        row_start = 1
+        row_current = row_start
+
+        row_current += 1
+        display_judul = "DATA BARANG"
+        if not opd == "_ALL_":
+            display_judul += "" # tambah ket. OPD
+        sheet[f"B{row_current}"] = display_judul
+        sheet[f"B{row_current}"].font = Font(bold=True, size=14)
+        sheet[f"B{row_current}"].alignment = Alignment(horizontal='center', vertical='center')
+        sheet.merge_cells(f"B{row_current}:H{row_current}")
+
+        row_current += 2
+        sheet[f"B{row_current}"] = "Kode Sensus"
+        sheet[f"C{row_current}"] = "Nama Barang"
+        sheet[f"D{row_current}"] = "OPD"
+        sheet[f"E{row_current}"] = "Kondisi"
+        sheet[f"F{row_current}"] = "Keberadaan"
+        sheet[f"G{row_current}"] = "Waktu Pendataan"
+        sheet[f"H{row_current}"] = "Keterangan"
+        for cell in helper.get_cells_in_range(sheet, f"B-{row_current}:H-{row_current}"):
+            cell.font = Font(bold=True, size=14)
+            cell.fill = PatternFill(start_color="c4c1c0", end_color="c4c1c0", fill_type="solid")
+            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        sheet.row_dimensions[row_current].height = 20
+        sheet.column_dimensions[("B")].width = 20
+        sheet.column_dimensions[("C")].width = 20
+        sheet.column_dimensions[("D")].width = 20
+        sheet.column_dimensions[("E")].width = 20
+        sheet.column_dimensions[("F")].width = 20
+        sheet.column_dimensions[("G")].width = 20
+        sheet.column_dimensions[("H")].width = 20
+        
+        row_data_start = row_current + 1
+        for i, record in enumerate(data):
+            row_current += 1
+            sheet[f"B{row_current}"] = record["BARANG_KODE_SENSUS"]
+            sheet[f"C{row_current}"] = record["BARANG_NAMA"]
+            sheet[f"D{row_current}"] = record["DINAS_NAMA"]
+            sheet[f"E{row_current}"] = record["BARANG_KONDISI_VALUE"]
+            sheet[f"F{row_current}"] = record["BARANG_KEBERADAAN_VALUE"]
+            sheet[f"G{row_current}"] = helper.tgl_indo(record["BARANG_WAKTU_PENDATAAN"], 'SHORT')
+            sheet[f"H{row_current}"] = record["BARANG_KETERANGAN"]
+        row_data_end = row_current
+        for cell in helper.get_cells_in_range(sheet, f"B-{row_data_start}:H-{row_data_end}"):
+            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+        row_current += 2
+        current_datetime = helper.get_local_time().strftime('%Y-%m-%d %H:%M:%S')
+        sheet[f"B{row_current}"] = f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}"
+        sheet[f"B{row_current}"].font = Font(italic=True)
+        sheet.merge_cells(f"B{row_current}:C{row_current}")
+
+        excel_file = BytesIO()
+        workbook.save(excel_file)
+        excel_file.seek(0)
+
         return send_file(excel_file, as_attachment=True, download_name=f'data barang {current_datetime}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     
 
@@ -386,7 +419,7 @@ def export_kmsbalita():
         import pdfkit
 
         env = Environment(loader=FileSystemLoader('view'))
-        template = env.get_template('template.html')
+        template = env.get_template('laporan-pemeriksaan.html')
 
         row = ""
         for i, record in enumerate(data):
