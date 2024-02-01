@@ -245,6 +245,19 @@ def posyandu_update():
     return helper.composeReply("SUCCESS", "Berhasil menyimpan posyandu", add)
 
 
+route = "/posyandu_delete"
+ruled_auth_token.append(route)
+@app.route(route, methods=['POST'])
+def posyandu_delete():
+    id = request.form.get("id")
+    if id == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (id)")
+    remove = helper.db_delete("posyandu", f"POSY_ID = {id}")
+    if not remove[0]:
+        return helper.composeReply("ERROR", "Internal server error occured, sorry")
+    return helper.composeReply("SUCCESS", "Berhasil menghapus posyandu", remove)
+
+
 route = "/file"
 @app.route(route, methods = ["GET"])
 def file():
