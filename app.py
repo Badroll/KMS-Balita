@@ -31,14 +31,14 @@ def middleware():
         user_data = user_data[0]
 
 
-route = "/posyandu_get"
-ruled_auth_token.append(route)
-@app.route(route, methods=['POST'])
-def posyandu_get():
-    data = helper.db_raw("""
-        SELECT * FROM posyandu
-    """)[1]
-    return helper.composeReply("SUCCESS", "Data Posyandu", data)
+# route = "/posyandu_get"
+# ruled_auth_token.append(route)
+# @app.route(route, methods=['POST'])
+# def posyandu_get():
+#     data = helper.db_raw("""
+#         SELECT * FROM posyandu
+#     """)[1]
+#     return helper.composeReply("SUCCESS", "Data Posyandu", data)
 
 
 route = "/auth_register"
@@ -57,6 +57,9 @@ def auth_register():
     hp = request.form.get("hp")
     if hp == None:
         return helper.composeReply("ERROR", "Parameter incomplete (hp)")
+    posyandu = request.form.get("posyandu")
+    if posyandu == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (posyandu)")
     
     cek_user = helper.db_raw(f"""
             SELECT * FROM _user WHERE USER_EMAIL = '{email}'
@@ -70,7 +73,8 @@ def auth_register():
         "USER_PASSWORD_HASH" : password,
         "USER_NAMA" : nama,
         "USER_HP" : hp,
-        "USER_TYPE" : "USER_TYPE_KADER"
+        "USER_TYPE" : "USER_TYPE_KADER",
+        "USER_POSY" : posyandu
     })
     
     return helper.composeReply("SUCCESS", "Berhasil menambahkan kader", register)
@@ -170,17 +174,75 @@ route = "/tes_get"
 ruled_auth_token.append(route)
 @app.route(route, methods=['POST'])
 def tes_get():
-    posyandu = request.form.get("posyandu")
-    if posyandu == None:
-        return helper.composeReply("ERROR", "Parameter incomplete (posyandu)")
+    keyword = request.form.get("keyword")
+    if keyword == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (keyword)")
     qry = """
-        SELECT * FROM tes
+        SELECT * FROM tes as A
+        JOIN posyandu as B ON A.TES_POSY = B.POSY_ID
     """
-    if posyandu != "_ALL_":
-        qry += f" WHERE TES_POSY = {posyandu}"
+    if keyword != "":
+        keyword = f"'%{keyword}%'"
+        qry += f"""
+            WHERE A.TES_NAMA LIKE {keyword}
+            OR B.POSY_NAMA LIKE {keyword}
+            OR A.TES_POSY IN (
+                SELECT CB.POSY_ID from _user as CA
+                JOIN posyandu as CB ON CA.USER_POSY = CB.POSY_ID
+                WHERE CA.USER_TYPE = 'USER_TYPE_KADER'
+                AND CA.USER_NAMA LIKE {keyword}
+            )
+        """
     data = helper.db_raw(qry)[1]
 
     return helper.composeReply("SUCCESS", "Data pengecekkan", data)
+
+
+route = "/posyandu_get"
+ruled_auth_token.append(route)
+@app.route(route, methods=['POST'])
+def posyandu_get():
+    # keyword = request.form.get("keyword")
+    # if keyword == None:
+    #     return helper.composeReply("ERROR", "Parameter incomplete (keyword)")
+    qry = """
+        SELECT * FROM posyandu as A
+    """
+    data = helper.db_raw(qry)[1]
+    return helper.composeReply("SUCCESS", "Data posyandu", data)
+
+
+route = "/posyandu_update"
+ruled_auth_token.append(route)
+@app.route(route, methods=['POST'])
+def posyandu_update():
+    id = request.form.get("id")
+    if id == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (id)")
+    nama = request.form.get("nama")
+    if nama == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (nama)")
+    keterangan = request.form.get("keterangan")
+    if keterangan == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (keterangan)")
+    
+    param = {
+        "POSY_NAMA" : nama,
+        "POSY_KETERANGAN" : keterangan,
+    }
+
+    if id == "0":
+        add = helper.db_insert("posyandu", param)
+        if not add[0]:
+            return helper.composeReply("ERROR", "Internal server error occured, sorry")
+    else:
+        add = helper.db_update("posyandu", param,
+                               f"POSY_ID = '{id}'"
+                               )
+        if not add[0]:
+            return helper.composeReply("ERROR", "Internal server error occured, sorry")
+    
+    return helper.composeReply("SUCCESS", "Berhasil menyimpan posyandu", add)
 
 
 route = "/file"

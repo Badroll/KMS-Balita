@@ -201,8 +201,6 @@ def send_telegram_photo(file, chat_id = env.tele_chat_id_bdmsth_logger_pakdhe):
 
 
 def get_setting(id):
-    import pymysql
-
     setting = db_raw(f"SELECT * FROM _setting WHERE S_ID = '{id}'")
     if setting[0] == False or len(setting[1]) == 0:
         return "-"
@@ -215,7 +213,7 @@ def send_wa_multipleSendText(phone, message, account=1):
     url = "https://kudus.wablas.com/api/v2/send-message"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": env.wabot[f"wabot_{account}_token"],
+        "Authorization": env.wabot[account][f"wabot_token"],
     }
     data = {
         "data": [
@@ -235,18 +233,18 @@ def send_wa_multipleSendText(phone, message, account=1):
     return [success, str(response.text)]
 
 
-def send_wa_multipleSendImage(phone, caption, url, account=1):
+def send_wa_multipleSendImage(phone, caption, url, image_url, account=1):
     import requests
     url = "https://kudus.wablas.com/api/v2/send-image"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": env.wabot[f"wabot_{account}_token"],
+        "Authorization": env.wabot[account][f"wabot_token"],
     }
     data = {
         "data": [
             {
                 "phone": phone,
-                "image": url,
+                "image": image_url,
                 "caption": caption
             }
         ]
