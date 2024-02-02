@@ -401,23 +401,50 @@ def export_simaset():
 route = "/export_kmsbalita"
 @app.route(route, methods=['GET'])
 def export_kmsbalita():
-    posyandu = request.args.get("posyandu")
-    if posyandu == None:
-        return helper.composeReply("ERROR", "Parameter incomplete (posyandu)")
-    posyandu_nama = request.args.get("posyandu_nama")
-    if posyandu_nama == None:
-        return helper.composeReply("ERROR", "Parameter incomplete (posyandu_nama)")
+    # posyandu = request.args.get("posyandu")
+    # if posyandu == None:
+    #     return helper.composeReply("ERROR", "Parameter incomplete (posyandu)")
+    # posyandu_nama = request.args.get("posyandu_nama")
+    # if posyandu_nama == None:
+    #     return helper.composeReply("ERROR", "Parameter incomplete (posyandu_nama)")
+    # export = request.args.get("export")
+    # if export == None:
+    #     return helper.composeReply("ERROR", "Parameter incomplete (export)")
+    # qry = """
+    #     SELECT A.*, B.*, C.R_VALUE AS TES_JK_VALUE FROM tes AS A
+    #     JOIN posyandu as B ON A.TES_POSY = B.POSY_ID
+    #     JOIN _reference as C ON A.TES_JK = C.R_ID
+    # """
+    # if not posyandu == "_ALL_":
+    #     qry += f" WHERE A.TES_POSY = {posyandu}"
+    # data = helper.db_raw(qry)[1]
+
     export = request.args.get("export")
     if export == None:
         return helper.composeReply("ERROR", "Parameter incomplete (export)")
+    keyword = request.args.get("keyword")
+    if keyword == None:
+        return helper.composeReply("ERROR", "Parameter incomplete (keyword)")
     qry = """
-        SELECT A.*, B.*, C.R_VALUE AS TES_JK_VALUE FROM tes AS A
+        SELECT * FROM tes as A
         JOIN posyandu as B ON A.TES_POSY = B.POSY_ID
-        JOIN _reference as C ON A.TES_JK = C.R_ID
+        JOIN _reference as R ON A.TES_JK = R.R_ID
     """
-    if not posyandu == "_ALL_":
-        qry += f" WHERE A.TES_POSY = {posyandu}"
+    if keyword != "":
+        keyword = f"'%{keyword}%'"
+        qry += f"""
+            WHERE A.TES_NAMA LIKE {keyword}
+            OR B.POSY_NAMA LIKE {keyword}
+            OR A.TES_POSY IN (
+                SELECT CB.POSY_ID from _user as CA
+                JOIN posyandu as CB ON CA.USER_POSY = CB.POSY_ID
+                WHERE CA.USER_TYPE = 'USER_TYPE_KADER'
+                AND CA.USER_NAMA LIKE {keyword}
+            )
+        """
     data = helper.db_raw(qry)[1]
+    keyword = request.args.get("keyword")
+
     print(data)
 
     import openpyxl
@@ -433,15 +460,13 @@ def export_kmsbalita():
 
     row_current += 1
     display_judul = "DATA PEMERIKSAAN"
-    if not posyandu == "_ALL_":
-        display_judul += "" # tambah ket. OPD
     sheet[f"B{row_current}"] = display_judul
     sheet[f"B{row_current}"].font = Font(bold=True, size=14)
     sheet[f"B{row_current}"].alignment = Alignment(horizontal='center', vertical='center')
-    sheet.merge_cells(f"B{row_current}:H{row_current}")
+    sheet.merge_cells(f"B{row_current}:I{row_current}")
 
     row_current += 1
-    sheet[f"B{row_current}"] = f"Posyandu : {posyandu_nama}"
+    sheet[f"B{row_current}"] = f"Kata Kunci : {keyword}"
     sheet[f"B{row_current}"].font = Font(bold=True)
 
     row_current += 2
@@ -452,7 +477,8 @@ def export_kmsbalita():
     sheet[f"F{row_current}"] = "Berat"
     sheet[f"G{row_current}"] = "Lingkar Kepala"
     sheet[f"H{row_current}"] = "Tanggal Pengecekkan"
-    for cell in helper.get_cells_in_range(sheet, f"B-{row_current}:H-{row_current}"):
+    sheet[f"I{row_current}"] = "Posyandu"
+    for cell in helper.get_cells_in_range(sheet, f"B-{row_current}:I-{row_current}"):
         cell.font = Font(bold=True, size=14)
         cell.fill = PatternFill(start_color="c4c1c0", end_color="c4c1c0", fill_type="solid")
         cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
@@ -464,19 +490,21 @@ def export_kmsbalita():
     sheet.column_dimensions[("F")].width = 20
     sheet.column_dimensions[("G")].width = 20
     sheet.column_dimensions[("H")].width = 25
+    sheet.column_dimensions[("I")].width = 20
     
     row_data_start = row_current + 1
     for i, record in enumerate(data):
         row_current += 1
         sheet[f"B{row_current}"] = record["TES_NAMA"]
-        sheet[f"C{row_current}"] = record["TES_JK_VALUE"]
+        sheet[f"C{row_current}"] = record["R_VALUE"]
         sheet[f"D{row_current}"] = f"{record['TES_UMUR']} bulan"
         sheet[f"E{row_current}"] = f"{record['TES_TINGGI']} cm ({record['TES_HASIL_TINGGI']})"
         sheet[f"F{row_current}"] = f"{record['TES_BERAT']} kg ({record['TES_HASIL_BERAT']})"
         sheet[f"G{row_current}"] = f"{record['TES_KEPALA']} cm ({record['TES_HASIL_KEPALA']})"
         sheet[f"H{row_current}"] = helper.tgl_indo(record["TES_TANGGAL"], 'SHORT').replace("00:00:00", "")
+        sheet[f"I{row_current}"] = record["POSY_NAMA"]
     row_data_end = row_current
-    for cell in helper.get_cells_in_range(sheet, f"B-{row_data_start}:H-{row_data_end}"):
+    for cell in helper.get_cells_in_range(sheet, f"B-{row_data_start}:I-{row_data_end}"):
         cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     row_current += 2
@@ -501,17 +529,18 @@ def export_kmsbalita():
             row += f"""
                 <tr>
                     <td>{record["TES_NAMA"]}</td>
-                    <td>{record["TES_JK_VALUE"]}</td>
+                    <td>{record["R_VALUE"]}</td>
                     <td>{record['TES_UMUR']} bulan</td>
                     <td>{record["TES_TINGGI"]} cm<br>({record['TES_HASIL_TINGGI']})</td>
                     <td>{record["TES_BERAT"]} kg<br>({record['TES_HASIL_BERAT']})</td>
                     <td>{record["TES_KEPALA"]} cm<br>({record['TES_HASIL_KEPALA']})</td>
                     <td>{helper.tgl_indo(record["TES_TANGGAL"], 'SHORT').replace("00:00:00", "")}</td>
+                    <td>{record["POSY_NAMA"]}</td>
                 </tr>
             """
         rendered_html = template.render(row=row,
                                         title=display_judul,
-                                        subtitle=f"Posyandu : {posyandu_nama}",
+                                        subtitle=f"Kata kunci : {keyword}",
                                         downloaded=f"diunduh pada : {helper.tgl_indo(current_datetime, 'LONG')}",
                                         img1=url_for('file', _external=True) + "?filename=img.png"
                                         )
@@ -519,7 +548,7 @@ def export_kmsbalita():
         with open('temp.html', 'w', encoding='utf-8') as html_file:
             html_file.write(rendered_html)
 
-        filename = f'storage/DATA PEMERIKSAAN POSYANDU {posyandu_nama}.pdf'
+        filename = f'storage/DATA PEMERIKSAAN.pdf'
         pdfkit.from_file('temp.html', filename)
         response = send_file(filename, as_attachment=True)
         
@@ -527,7 +556,7 @@ def export_kmsbalita():
         #os.remove(filename)
         return response
     else:
-        return send_file(excel_file, as_attachment=True, download_name=f'DATA PEMERIKSAAN POSYANDU {posyandu_nama}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        return send_file(excel_file, as_attachment=True, download_name=f'DATA PEMERIKSAAN.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
    
 
 
