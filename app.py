@@ -299,7 +299,13 @@ def export_simaset():
 
         env = Environment(loader=FileSystemLoader('view'))
         template = env.get_template('qr.html')
-        rendered_html = template.render(svg=data["BARANG_QR_SVG"],
+        # qr_svg = ""
+        # for j, char in enumerate(data["BARANG_QR_SVG"]):
+        #     if char == '\\"':
+        #         char = '"'
+        #     qr_svg += char
+        qr_svg = data["BARANG_QR_SVG"]
+        rendered_html = template.render(svg=helper.httpreq_get(f"http://127.0.0.1:8006/qr?qr_size=500&qr_content={data['BARANG_KODE_SENSUS']}"),
                                         title= f"{kode} - {data['BARANG_NAMA']}"
                                         )
 

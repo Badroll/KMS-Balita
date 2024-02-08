@@ -104,13 +104,13 @@ def db_insert(table, data):
     return [rStatus, rMessage]
 
 
-def db_update(table, data, where_clause):
+def db_update(table, data, where_clause, host=env.dbHost, user=env.dbUser, passwd=env.dbPassword, database=env.dbDatabase):
     import pymysql
 
     rStatus = True
     rMessage = ""
     
-    db = pymysql.connect(host=env.dbHost, user=env.dbUser, passwd=env.dbPassword, database=env.dbDatabase)
+    db = pymysql.connect(host=host, user=user, passwd=passwd, database=database)
     c = db.cursor()
     try:
         set_values = ",".join([f"{column} = %s" for column in data.keys()])
@@ -386,3 +386,9 @@ def get_local_time():
     jakarta_timezone = pytz.timezone('Asia/Jakarta')
     local_time = utc_time.replace(tzinfo=pytz.utc).astimezone(jakarta_timezone)
     return local_time
+
+def httpreq_get(url):
+    import requests
+    response = requests.get(url)
+    response_string = response.text
+    return response_string
